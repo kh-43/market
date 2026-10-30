@@ -54,7 +54,7 @@
                     <i class="fa-solid fa-stethoscope"></i>
                 </div>
                 <h1 class="text-2xl font-bold text-slate-900">بوابة التسويق الطبي</h1>
-                <p class="text-sm text-slate-500 mt-1">إشراف: خلدون أحمد</p>
+                <p class="text-sm text-slate-500 mt-1"></p>
             </div>
             
             <form id="loginForm" class="space-y-5" onsubmit="handleLogin(event)">
@@ -827,10 +827,18 @@
 
         let visitsTypeChartInstance = null;
 
-        window.onload = function() {
+        // --- Supabase Client Configuration ---
+        const SUPABASE_URL = 'https://rnkyzkkscqrfmlkfuwhd.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJua3l6a2tzY3FyZm1sa2Z1d2hkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyMTA2NTcsImV4cCI6MjEwODc4NjY1N30.O1ysUAVsgvSnzudy6atr4UUXc2kElL_-xu8T2WcxvwI';
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        window.onload = async function() {
             loadFromLocalStorage();
             initDateFields();
             
+            // جلب البيانات المحدثة تلقائياً من سوبباس عند فتح التطبيق
+            await syncDataFromCloud();
+
             window.addEventListener('online', updateOnlineStatus);
             window.addEventListener('offline', updateOnlineStatus);
             updateOnlineStatus();
@@ -838,6 +846,25 @@
             document.getElementById('loginUsername').value = '';
             document.getElementById('loginPassword').value = '';
         };
+
+        async function syncDataFromCloud() {
+            try {
+                const { data: usersData, error: userErr } = await supabaseClient.from('users').select('*');
+                const { data: visitsData, error: visitErr } = await supabaseClient.from('visits').select('*');
+                
+                if (usersData && usersData.length > 0) {
+                    appData.users = usersData;
+                }
+                if (visitsData) {
+                    appData.visits = visitsData;
+                }
+                saveToLocalStorage();
+                renderAll();
+                console.log("تمت المزامنة مع سوبباس بنجاح");
+            } catch (err) {
+                console.error("خطأ في المزامنة السحابية:", err);
+            }
+        }
 
         function updateOnlineStatus() {
             const dot = document.getElementById('connection-status-dot');
@@ -919,7 +946,7 @@
                 document.getElementById('appContainer').style.display = 'flex';
 
                 document.getElementById('bannerUserName').textContent = `مرحباً بك، ${foundUser.fullName}`;
-                document.getElementById('headerUserSubtitle').textContent = foundUser.username === 'admin' ? 'مدير النظام ()' : 'مندوب تسويق';
+                document.getElementById('headerUserSubtitle').textContent = foundUser.username === 'admin' ? 'مدير النظام (خلدون أحمد)' : 'مندوب تسويق';
 
                 buildNavigation();
                 initAfterLogin();
@@ -1136,7 +1163,7 @@
             document.getElementById('visit-modal').classList.add('hidden');
         }
 
-        function saveVisit(e) {
+        async function saveVisit(e) {
             e.preventDefault();
             const id = document.getElementById('visit-id').value;
             const visitData = {
@@ -1161,6 +1188,19 @@
             }
 
             saveToLocalStorage();
+
+            // حفظ وإرسال البيانات إلى سوبباس بشكل مباشر وفوري
+            try {
+                const { error } = await supabaseClient
+                    .from('visits')
+                    .upsert([visitData]);
+                if (error) {
+                    console.error("خطأ في الحفظ السحابي:", error.message);
+                }
+            } catch (err) {
+                console.error("استثناء الاتصال:", err);
+            }
+
             closeVisitModal();
             renderAll();
         }
@@ -1183,11 +1223,25 @@
             document.getElementById('visit-modal').classList.remove('hidden');
         }
 
-        function deleteVisit(id) {
+        async function deleteVisit(id) {
             if (confirm("هل أنت متأكد من حذف هذه الزيارة من السجلات؟")) {
                 appData.visits = appData.visits.filter(v => v.id !== id);
                 saveToLocalStorage();
                 renderAll();
+
+                // الحذف من سوبباس
+                try {
+                    const { error } = await supabaseClient
+                        .from('visits')
+                        .delete()
+                        .eq('id', id);
+                    if (error) {
+                        console.error("خطأ في الحذف من سوبباس:", error.message);
+                    }
+                } catch (err) {
+                    console.error("استثناء الحذف:", err);
+                }
+
                 showToast("تم حذف الزيارة بنجاح", "info");
             }
         }
@@ -1419,7 +1473,7 @@
             document.getElementById('user-modal').classList.remove('hidden');
         }
 
-        function saveUser(e) {
+        async function saveUser(e) {
             e.preventDefault();
             const original = document.getElementById('editing-user-original').value;
             const uUsername = document.getElementById('u-username').value.trim();
@@ -1439,16 +1493,18 @@
                 });
             }
 
+            const userDataObj = { 
+                username: uUsername, 
+                fullName: uFullName, 
+                password: uPassword, 
+                permissions: selectedPerms, 
+                canChangePassword: canChangePass 
+            };
+
             if (original) {
                 const index = appData.users.findIndex(u => u.username === original);
                 if (index !== -1) {
-                    appData.users[index] = { 
-                        username: uUsername, 
-                        fullName: uFullName, 
-                        password: uPassword, 
-                        permissions: selectedPerms, 
-                        canChangePassword: canChangePass 
-                    };
+                    appData.users[index] = userDataObj;
                 }
                 showToast("تم تحديث المستخدم والصلاحيات بنجاح", "success");
             } else {
@@ -1456,22 +1512,24 @@
                     showToast("اسم المستخدم موجود مسبقاً، اختر اسماً آخر", "error");
                     return;
                 }
-                appData.users.push({ 
-                    username: uUsername, 
-                    fullName: uFullName, 
-                    password: uPassword, 
-                    permissions: selectedPerms, 
-                    canChangePassword: true 
-                });
+                appData.users.push(userDataObj);
                 showToast("تمت إضافة المستخدم بنجاح", "success");
             }
 
             saveToLocalStorage();
+
+            // حفظ المستخدم سحابياً
+            try {
+                await supabaseClient.from('users').upsert([userDataObj]);
+            } catch (err) {
+                console.error("خطأ حفظ المستخدم سحابياً:", err);
+            }
+
             closeUserModal();
             renderUsersTable();
         }
 
-        function deleteUser(username) {
+        async function deleteUser(username) {
             if (username === 'admin') {
                 showToast("لا يمكن حذف حساب مدير النظام الرئيسي", "error");
                 return;
@@ -1480,6 +1538,13 @@
                 appData.users = appData.users.filter(u => u.username !== username);
                 saveToLocalStorage();
                 renderUsersTable();
+
+                try {
+                    await supabaseClient.from('users').delete().eq('username', username);
+                } catch (err) {
+                    console.error("خطأ الحذف سحابياً:", err);
+                }
+
                 showToast("تم حذف المستخدم بنجاح", "info");
             }
         }
@@ -1499,7 +1564,7 @@
             document.getElementById('change-my-password-modal').classList.add('hidden');
         }
 
-        function saveMyNewPassword(e) {
+        async function saveMyNewPassword(e) {
             e.preventDefault();
             const currentPass = document.getElementById('current-pass-input').value.trim();
             const newPass = document.getElementById('new-pass-input').value.trim();
@@ -1517,6 +1582,13 @@
             }
 
             saveToLocalStorage();
+
+            try {
+                await supabaseClient.from('users').upsert([appData.currentUser]);
+            } catch (err) {
+                console.error("خطأ تحديث كلمة المرور سحابياً:", err);
+            }
+
             closeChangeMyPasswordModal();
             showToast("تم تغيير كلمة المرور الشخصية بنجاح", "success");
         }
@@ -1573,11 +1645,10 @@
             closeBackupModal();
         }
 
-        function syncDataNow() {
+        async function syncDataNow() {
             showToast("جاري مزامنة البيانات مع السحابة والأجهزة المتصلة...", "info");
-            setTimeout(() => {
-                showToast("تمت المزامنة بنجاح وتحديث السجلات!", "success");
-            }, 1200);
+            await syncDataFromCloud();
+            showToast("تمت المزامنة بنجاح وتحديث السجلات!", "success");
         }
 
         // --- HELPER TOASTS & DATES ---
@@ -1614,22 +1685,6 @@
                 setTimeout(() => toast.remove(), 300);
             }, 3000);
         }
-// --- كود الربط بالسحابة لتفعيل المزامنة المباشرة ---
-// --- كود الربط السحابي الفعلي ---
-const SUPABASE_URL = 'https://rnkyzkkscqrfmlkfuwhd.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJua3l6a2tzY3FyZm1sa2Z1d2hkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyMTA2NTcsImV4cCI6MjEwODc4NjY1N30.O1ysUAVsgvSnzudy6atr4UUXc2kElL_-xu8T2WcxvwI';
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-async function syncDataFromCloud() {
-    try {
-        const { data: usersData } = await supabaseClient.from('users').select('*');
-        const { data: visitsData } = await supabaseClient.from('visits').select('*');
-        if (usersData) appData.users = usersData;
-        if (visitsData) appData.visits = visitsData;
-        console.log("تمت المزامنة مع السحابة بنجاح");
-    } catch (err) {
-        console.error("خطأ في المزامنة:", err);
-    }
-}
     </script>
 </body>
 </html>
