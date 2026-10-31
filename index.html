@@ -1,0 +1,1703 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>منصة إدارة التسويق الطبي والزيارات الميدانية - </title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <!-- مكتبة Supabase السحابية الرسمية -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts - Cairo -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f1f5f9;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            body {
+                background: white !important;
+            }
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- شاشة تسجيل الدخول الآمنة (لا تعرض بيانات افتراضية) -->
+    <div id="loginScreen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 border border-slate-100">
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl text-2xl mb-4 shadow-inner">
+                    <i class="fa-solid fa-stethoscope"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-slate-900">بوابة التسويق الطبي</h1>
+                <p class="text-sm text-slate-500 mt-1">تجريبي </p>
+            </div>
+            
+            <form id="loginForm" class="space-y-5" onsubmit="handleLogin(event)">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">اسم المستخدم</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+                            <i class="fa-solid fa-user"></i>
+                        </span>
+                        <input type="text" id="loginUsername" required autocomplete="off" 
+                            class="w-full pr-10 pl-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white transition text-xs"
+                            placeholder="أدخل اسم المستخدم">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">كلمة المرور</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+                            <i class="fa-solid fa-lock"></i>
+                        </span>
+                        <input type="password" id="loginPassword" required autocomplete="new-password" 
+                            class="w-full pr-10 pl-12 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white transition text-xs"
+                            placeholder="أدخل كلمة المرور">
+                        <button type="button" onclick="togglePasswordVisibility()" class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none">
+                            <i id="togglePasswordIcon" class="fa-solid fa-eye text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="loginError" class="text-rose-500 text-xs text-center hidden font-bold">اسم المستخدم أو كلمة المرور غير صحيحة</div>
+
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl shadow-lg shadow-blue-600/25 transition text-sm">
+                    تسجيل الدخول
+                </button>
+            </form>
+            <div class="mt-6 text-center text-[11px] text-slate-400 border-t border-slate-100 pt-4">
+            </div>
+        </div>
+    </div>
+
+    <!-- التطبيق الرئيسي (يظهر بعد تسجيل الدخول) -->
+    <div id="appContainer" class="hidden flex-col min-h-screen">
+
+        <!-- Notification Toast Container -->
+        <div id="toast-container" class="fixed top-5 left-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+        <!-- Top Navigation Bar -->
+        <header class="bg-gradient-to-r from-blue-900 to-indigo-800 text-white shadow-md sticky top-0 z-40 no-print">
+            <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center">
+                <div class="flex items-center space-x-3 space-x-reverse">
+                    <div class="bg-white/10 p-2.5 rounded-xl border border-white/20">
+                        <i class="fa-solid fa-stethoscope text-2xl text-cyan-300"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold tracking-wide">منظومة التسويق الطبي المتقدمة</h1>
+                        <p class="text-xs text-blue-200" id="headerUserSubtitle">تصميم وإشراف: خلدون أحمد</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 mt-2 sm:mt-0">
+                    <button onclick="openChangeMyPasswordModal()" class="bg-slate-700/60 hover:bg-slate-700 text-xs px-3 py-2 rounded-lg border border-slate-600 transition flex items-center gap-1.5 shadow-sm">
+                        <i class="fa-solid fa-key"></i> تغيير كلمة المرور
+                    </button>
+                    <button onclick="syncDataNow()" class="bg-blue-700/60 hover:bg-blue-700 text-xs px-3 py-2 rounded-lg border border-blue-600 transition flex items-center gap-1.5 shadow-sm">
+                        <i class="fa-solid fa-rotate"></i> مزامنة سحابية
+                    </button>
+                    <button onclick="openBackupModal()" class="bg-indigo-700/60 hover:bg-indigo-700 text-xs px-3 py-2 rounded-lg border border-indigo-600 transition flex items-center gap-1.5 shadow-sm">
+                        <i class="fa-solid fa-database"></i> النسخ والبيانات
+                    </button>
+                    <button onclick="handleLogout()" class="bg-rose-600/80 hover:bg-rose-700 text-xs px-3 py-2 rounded-lg border border-rose-500 transition flex items-center gap-1.5 shadow-sm">
+                        <i class="fa-solid fa-power-off"></i> خروج
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Navigation Tabs -->
+        <nav class="bg-white border-b border-slate-200 shadow-sm sticky top-[61px] z-30 no-print overflow-x-auto">
+            <div id="mainNavContainer" class="max-w-7xl mx-auto px-4 flex space-x-1 space-x-reverse whitespace-nowrap">
+                <!-- يتم تعبئتها ديناميكياً حسب صلاحيات المستخدم -->
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full">
+
+            <!-- TAB 1: DASHBOARD -->
+            <section id="tab-dashboard" class="tab-content space-y-6">
+                <!-- Welcome Banner -->
+                <div class="bg-gradient-to-l from-blue-700 to-indigo-900 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div>
+                        <h2 class="text-2xl font-black mb-1" id="bannerUserName">مرحباً بك</h2>
+                        <p class="text-blue-100 text-sm">تابع أداءك الميداني، حالة الزيارات، وحقق أهدافك التعاقدية بكفاءة عالية اليوم.</p>
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="openNewVisitModal()" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-xl text-sm shadow-lg transition flex items-center gap-2">
+                            <i class="fa-solid fa-plus-circle"></i> تسجيل زيارة جديدة
+                        </button>
+                        <button onclick="switchTab('reports')" class="bg-white/10 hover:bg-white/20 text-white border border-white/30 px-4 py-2.5 rounded-xl text-sm transition flex items-center gap-2">
+                            <i class="fa-solid fa-print"></i> تقرير اليوم
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quick Stats Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-500 mb-1">إجمالي الزيارات هذا الشهر</p>
+                            <h3 id="stat-total-visits" class="text-3xl font-black text-slate-800">0</h3>
+                            <span class="text-xs text-emerald-600 font-medium bg-emerald-50 px-2 py-0.5 rounded-md mt-1 inline-block"><i class="fa-solid fa-arrow-up"></i> نشط مستمر</span>
+                        </div>
+                        <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center text-xl shadow-inner">
+                            <i class="fa-solid fa-hospital-user"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-500 mb-1">التعاقدات المؤكدة</p>
+                            <h3 id="stat-contracts" class="text-3xl font-black text-emerald-600">0</h3>
+                            <span class="text-xs text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded-md mt-1 inline-block">نسبة التحويل</span>
+                        </div>
+                        <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center text-xl shadow-inner">
+                            <i class="fa-solid fa-file-signature"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-500 mb-1">الأطباء والعيادات المزورة</p>
+                            <h3 id="stat-doctors" class="text-3xl font-black text-indigo-600">0</h3>
+                            <span class="text-xs text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded-md mt-1 inline-block">تغطية واسعة</span>
+                        </div>
+                        <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-xl shadow-inner">
+                            <i class="fa-solid fa-user-doctor"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-500 mb-1">مستشفيات وجهات تأمينية</p>
+                            <h3 id="stat-institutions" class="text-3xl font-black text-amber-600">0</h3>
+                            <span class="text-xs text-amber-600 font-medium bg-amber-50 px-2 py-0.5 rounded-md mt-1 inline-block">شراكات استراتيجية</span>
+                        </div>
+                        <div class="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center text-xl shadow-inner">
+                            <i class="fa-solid fa-building-shield"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts & Recent Visits Grid -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Analytics Chart -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 lg:col-span-2 flex flex-col justify-between">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-slate-800 text-base"><i class="fa-solid fa-chart-line text-blue-600 ml-2"></i> توزيع الزيارات حسب نوع الجهة</h3>
+                            <span class="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-lg">محدث فوراً</span>
+                        </div>
+                        <div class="relative h-72 w-full flex items-center justify-center">
+                            <canvas id="visitsTypeChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Quick Todo / Follow-ups -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="font-bold text-slate-800 text-base"><i class="fa-solid fa-bell text-amber-500 ml-2"></i> زيارات المتابعة القادمة</h3>
+                                <span id="followup-count" class="text-xs font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">0</span>
+                            </div>
+                            <div id="followup-list" class="space-y-3 overflow-y-auto max-h-64 pr-1">
+                                <!-- Dynamic Follow-ups -->
+                            </div>
+                        </div>
+                        <button onclick="switchTab('visits')" class="w-full mt-4 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl text-xs font-semibold transition">
+                            عرض كافة الزيارات الميدانية
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: VISITS MANAGEMENT -->
+            <section id="tab-visits" class="tab-content hidden space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-800">إدارة الزيارات الميدانية</h2>
+                            <p class="text-xs text-slate-500 mt-0.5">تسجيل وتتبع زيارات الأطباء، المستشفيات، شركات التأمين والجهات التجارية</p>
+                        </div>
+                        <button onclick="openNewVisitModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2.5 rounded-xl text-sm shadow transition flex items-center gap-2">
+                            <i class="fa-solid fa-plus"></i> إضافة زيارة جديدة
+                        </button>
+                    </div>
+
+                    <!-- Filter & Search Toolbar -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">بحث بالاسم أو الجهة</label>
+                            <div class="relative">
+                                <i class="fa-solid fa-search absolute right-3 top-3 text-slate-400 text-xs"></i>
+                                <input type="text" id="search-visits-input" oninput="renderVisitsTable()" placeholder="ابحث عن طبيب أو مستشفى..." class="w-full pr-9 pl-3 py-2 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">تصفية حسب نوع الجهة</label>
+                            <select id="filter-type" onchange="renderVisitsTable()" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="all">جميع الجهات</option>
+                                <option value="طبيب">طبيب / عيادة</option>
+                                <option value="مستشفى">مستشفى / مركز طبي</option>
+                                <option value="شركة تأمين">شركة تأمين</option>
+                                <option value="جهة تجارية">جهة تجارية / شركة</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">تصفية حسب حالة الزيارة</label>
+                            <select id="filter-status" onchange="renderVisitsTable()" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="all">جميع الحالات</option>
+                                <option value="مكتملة">مكتملة</option>
+                                <option value="متابعة مطلوبة">متابعة مطلوبة</option>
+                                <option value="تم التعاقد">تم التعاقد</option>
+                                <option value="مؤجلة / اعتذار">مؤجلة / اعتذار</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Visits Table -->
+                    <div class="overflow-x-auto rounded-xl border border-slate-200">
+                        <table class="w-full text-right border-collapse">
+                            <thead class="bg-slate-100 text-slate-700 text-xs uppercase font-bold">
+                                <tr>
+                                    <th class="p-3.5">تاريخ الزيارة</th>
+                                    <th class="p-3.5">اسم العميل / الجهة</th>
+                                    <th class="p-3.5">التصنيف</th>
+                                    <th class="p-3.5">الخدمة المعروضة</th>
+                                    <th class="p-3.5">الحالة</th>
+                                    <th class="p-3.5">الملاحظات</th>
+                                    <th class="p-3.5 text-center">الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="visits-table-body" class="divide-y divide-slate-200 text-xs text-slate-700">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: MEDICAL SERVICES PRESENTATION -->
+            <section id="tab-services" class="tab-content hidden space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-800">دليل الخدمات الطبية للعرض الميداني</h2>
+                            <p class="text-xs text-slate-500 mt-0.5">استعرض تفاصيل الخدمات ومميزاتها الطبية لتقديمها باحترافية أثناء زيارة الأطباء والجهات</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="openServicePitchModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2.5 rounded-xl text-sm shadow transition flex items-center gap-2">
+                                <i class="fa-solid fa-bullhorn"></i> تقديم خدمة لعميل
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Services Grid -->
+                    <div id="services-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <!-- Populated via JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: MARKETING PLAN & GOALS -->
+            <section id="tab-plan" class="tab-content hidden space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-800">الخطة التسويقية والأهداف الأسبوعية والشهرية</h2>
+                            <p class="text-xs text-slate-500 mt-0.5">تتبع أهدافك المستهدفة ومستوى إنجازك الفعلي لإدارتك</p>
+                        </div>
+                        <button onclick="openEditPlanModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2.5 rounded-xl text-sm shadow transition flex items-center gap-2">
+                            <i class="fa-solid fa-pen-to-square"></i> تعديل خطة الأهداف
+                        </button>
+                    </div>
+
+                    <!-- Targets Progress Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div class="bg-blue-50 border border-blue-200 p-5 rounded-2xl">
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="font-bold text-blue-900 text-sm">زيارات الأطباء المستهدفة</h3>
+                                <i class="fa-solid fa-user-doctor text-blue-600 text-lg"></i>
+                            </div>
+                            <div class="flex justify-between text-xs font-semibold text-blue-700 mb-2">
+                                <span id="target-doc-progress">تم انجاز 0 من 0</span>
+                                <span id="target-doc-percent">0%</span>
+                            </div>
+                            <div class="w-full bg-blue-200 rounded-full h-2.5">
+                                <div id="bar-doc" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <div class="bg-emerald-50 border border-emerald-200 p-5 rounded-2xl">
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="font-bold text-emerald-900 text-sm">تعاقدات المستشفيات والتأمين</h3>
+                                <i class="fa-solid fa-hospital text-emerald-600 text-lg"></i>
+                            </div>
+                            <div class="flex justify-between text-xs font-semibold text-emerald-700 mb-2">
+                                <span id="target-inst-progress">تم انجاز 0 من 0</span>
+                                <span id="target-inst-percent">0%</span>
+                            </div>
+                            <div class="w-full bg-emerald-200 rounded-full h-2.5">
+                                <div id="bar-inst" class="bg-emerald-600 h-2.5 rounded-full" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <div class="bg-purple-50 border border-purple-200 p-5 rounded-2xl">
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="font-bold text-purple-900 text-sm">العوائد / الإحالات الطبية</h3>
+                                <i class="fa-solid fa-chart-line text-purple-600 text-lg"></i>
+                            </div>
+                            <div class="flex justify-between text-xs font-semibold text-purple-700 mb-2">
+                                <span id="target-rev-progress">تم انجاز 0 من 0</span>
+                                <span id="target-rev-percent">0%</span>
+                            </div>
+                            <div class="w-full bg-purple-200 rounded-full h-2.5">
+                                <div id="bar-rev" class="bg-purple-600 h-2.5 rounded-full" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Strategy Notes & Objectives -->
+                    <div class="bg-slate-50 border border-slate-200 p-6 rounded-2xl space-y-4">
+                        <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-bullseye text-blue-600"></i> الاستراتيجية التسويقية والشهرية لمركزنا الطبي
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-700">
+                            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                <h4 class="font-bold text-blue-800 mb-2"><i class="fa-solid fa-star text-amber-400 ml-1"></i> الأهداف الاستراتيجية الأساسية</h4>
+                                <ul class="list-disc list-inside space-y-1.5 text-slate-600">
+                                    <li>بناء شبكة إحالة قوية مع استشاريين القطاع الخاص.</li>
+                                    <li>توقيع اتفاقيات تعاون مع كبرى شركات التأمين الطبي.</li>
+                                    <li>الترويج لأقسام الطوارئ والأشعة المتقدمة بالمطالبات التجارية.</li>
+                                </ul>
+                            </div>
+                            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                <h4 class="font-bold text-blue-800 mb-2"><i class="fa-solid fa-lightbulb text-amber-400 ml-1"></i> نقاط القوة في المركز الطبي للتركيز عليها</h4>
+                                <ul class="list-disc list-inside space-y-1.5 text-slate-600">
+                                    <li>سرعة تقديم التقارير الطبية وإصدار الموافقات.</li>
+                                    <li>فريق استشاريين متميز وتجهيز مخبري حديث.</li>
+                                    <li>أسعار تنافسية وحزم خاصة لشركات التأمين والمؤسسات.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 5: REPORTS & ANALYTICS -->
+            <section id="tab-reports" class="tab-content hidden space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-800">التقارير الاحترافية والذكية للإدارة</h2>
+                            <p class="text-xs text-slate-500 mt-0.5">تقارير دورية تفصيلية وإجمالية (أسبوعية والشهرية) جاهزة للطباعة أو المشاركة</p>
+                        </div>
+                        <div class="flex gap-2 no-print">
+                            <button onclick="generateReport('weekly')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2.5 rounded-xl text-sm shadow transition flex items-center gap-2">
+                                <i class="fa-solid fa-calendar-week"></i> تقرير أسبوعي
+                            </button>
+                            <button onclick="generateReport('monthly')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2.5 rounded-xl text-sm shadow transition flex items-center gap-2">
+                                <i class="fa-solid fa-calendar-days"></i> تقرير شهري
+                            </button>
+                            <button onclick="window.print()" class="bg-slate-700 hover:bg-slate-800 text-white font-bold px-4 py-2.5 rounded-xl text-sm shadow transition flex items-center gap-2">
+                                <i class="fa-solid fa-print"></i> طباعة / PDF
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Report Output Container -->
+                    <div id="report-output-container" class="border border-slate-300 p-8 rounded-2xl bg-white shadow-inner space-y-6">
+                        <div class="flex justify-between items-center border-b border-slate-200 pb-4">
+                            <div>
+                                <h3 id="report-title-heading" class="text-xl font-black text-blue-900">التقرير التسويقي الشامل</h3>
+                                <p id="report-date-sub" class="text-xs text-slate-500 mt-1">الفترة: الحالية | المندوب: قسم التسويق الطبي</p>
+                            </div>
+                            <div class="text-left">
+                                <span class="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full">: </span>
+                            </div>
+                        </div>
+
+                        <!-- Summary KPI Box in Report -->
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <span class="block text-xs text-slate-500 font-semibold mb-1">إجمالي الزيارات</span>
+                                <span id="rep-total-visits" class="text-2xl font-black text-blue-900">0</span>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <span class="block text-xs text-slate-500 font-semibold mb-1">التعاقدات الجديدة</span>
+                                <span id="rep-total-contracts" class="text-2xl font-black text-emerald-600">0</span>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <span class="block text-xs text-slate-500 font-semibold mb-1">الأطباء المزاورون</span>
+                                <span id="rep-total-doctors" class="text-2xl font-black text-indigo-600">0</span>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <span class="block text-xs text-slate-500 font-semibold mb-1">نسبة إنجاز الخطة</span>
+                                <span id="rep-achievement-rate" class="text-2xl font-black text-amber-600">0%</span>
+                            </div>
+                        </div>
+
+                        <!-- Detailed Report Breakdown -->
+                        <div class="space-y-4">
+                            <h4 class="font-bold text-slate-800 text-sm border-r-4 border-blue-600 pr-2">أبرز إنجازات الزيارات والتعاقدات</h4>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-right border-collapse text-xs">
+                                    <thead class="bg-slate-100 text-slate-700">
+                                        <tr>
+                                            <th class="p-2.5 border border-slate-200">التاريخ</th>
+                                            <th class="p-2.5 border border-slate-200">الجهة / العميل</th>
+                                            <th class="p-2.5 border border-slate-200">التصنيف</th>
+                                            <th class="p-2.5 border border-slate-200">الحالة الناتجة</th>
+                                            <th class="p-2.5 border border-slate-200">ملخص النتائج والتوصيات</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="report-table-body" class="divide-y divide-slate-200 text-slate-700">
+                                        <!-- Populated by JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Recommendations & Next Steps -->
+                        <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-200 space-y-2">
+                            <h4 class="font-bold text-blue-900 text-xs">توصيات ومقترحات الفترة القادمة لإدارة المركز:</h4>
+                            <p id="report-recommendations" class="text-xs text-slate-700 leading-relaxed">
+                                استمرار التواصل المكثف مع الأطباء الاستشاريين في العيادات الخارجية، وزيارة شركات التأمين الجديدة لتقديم عروض الحزم الطبية المخفضة لزيادة عدد المرضى المحالين.
+                            </p>
+                        </div>
+
+                        <div class="flex justify-between items-center pt-6 border-t border-slate-200 text-xs text-slate-500">
+                            <span>توقيع المندوب الطبي: ........................................</span>
+                            <span>اعتماد الإدارة (خلدون أحمد): ........................................</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 6: USERS & PERMISSIONS MANAGEMENT (للمدير) -->
+            <section id="tab-users" class="tab-content hidden space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-800">إدارة المستخدمين والصلاحيات</h2>
+                            <p class="text-xs text-slate-500 mt-0.5">إضافة، تعديل، أو حذف المستخدمين وتحديد صلاحياتهم بدقة (بما فيها منح تعديل كلمة السر)</p>
+                        </div>
+                        <button onclick="openUserModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2.5 rounded-xl text-sm shadow transition flex items-center gap-2">
+                            <i class="fa-solid fa-user-plus"></i> إضافة مستخدم جديد
+                        </button>
+                    </div>
+
+                    <div class="overflow-x-auto rounded-xl border border-slate-200">
+                        <table class="w-full text-right border-collapse text-xs">
+                            <thead class="bg-slate-100 text-slate-700 uppercase font-bold">
+                                <tr>
+                                    <th class="p-3.5">اسم المستخدم</th>
+                                    <th class="p-3.5">الاسم الكامل / المسمى</th>
+                                    <th class="p-3.5">الصلاحيات الممنوحة للأقسام وتعديل كلمة السر</th>
+                                    <th class="p-3.5 text-center">الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table-body" class="divide-y divide-slate-200 text-slate-700">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- MODAL: Add / Edit Visit -->
+    <div id="visit-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 relative">
+            <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+                <h3 id="visit-modal-title" class="font-bold text-slate-800 text-base">تسجيل زيارة ميدانية جديدة</h3>
+                <button onclick="closeVisitModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="visit-form" onsubmit="saveVisit(event)" class="space-y-3">
+                <input type="hidden" id="visit-id">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">اسم العميل / الجهة *</label>
+                        <input type="text" id="v-name" required placeholder="مثال: د. أحمد خالد / مستشفى النور" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">نوع الجهة *</label>
+                        <select id="v-type" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                            <option value="طبيب">طبيب / عيادة</option>
+                            <option value="مستشفى">مستشفى / مركز طبي</option>
+                            <option value="شركة تأمين">شركة تأمين</option>
+                            <option value="جهة تجارية">جهة تجارية / شركة</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">تاريخ الزيارة *</label>
+                        <input type="date" id="v-date" required class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">حالة الزيارة *</label>
+                        <select id="v-status" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                            <option value="مكتملة">مكتملة</option>
+                            <option value="متابعة مطلوبة">متابعة مطلوبة</option>
+                            <option value="تم التعاقد">تم التعاقد</option>
+                            <option value="مؤجلة / اعتذار">مؤجلة / اعتذار</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">الخدمة الطبية المعروضة</label>
+                    <select id="v-service" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        <!-- Populated dynamically -->
+                    </select>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">رقم الهاتف / وسيلة الاتصال</label>
+                        <input type="text" id="v-phone" placeholder="05xxxxxxxx" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">تاريخ المتابعة القادمة (إن وجدت)</label>
+                        <input type="date" id="v-followup" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">ملاحظات الزيارة ومقترحات العميل</label>
+                    <textarea id="v-notes" rows="3" placeholder="تفاصيل النقاش، رد فعل العميل، الخدمات المطلوبة..." class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
+                </div>
+                <div class="flex justify-end gap-2 pt-2 border-t border-slate-200">
+                    <button type="button" onclick="closeVisitModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs font-semibold transition">إلغاء</button>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition shadow">حفظ الزيارة</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Service Pitch Modal -->
+    <div id="service-pitch-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+                <h3 class="font-bold text-slate-800 text-base">تقديم خدمة طبية لعميل</h3>
+                <button onclick="closeServicePitchModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="space-y-3 text-xs">
+                <p class="text-slate-500">اختر الخدمة الطبية والعميل لتوليد رسالة ترويجية جاهزة للارسال عبر واتساب أو البريد:</p>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">اختر الخدمة:</label>
+                    <select id="pitch-service-select" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"></select>
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">اسم الطبيب أو الجهة المستهدفة:</label>
+                    <input type="text" id="pitch-client-name" placeholder="د. محمد / مستشفى..." class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">الرسالة التسويقية الجاهزة:</label>
+                    <textarea id="pitch-message-preview" rows="5" class="w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-lg text-xs font-mono" readonly></textarea>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-2 border-t border-slate-200">
+                <button onclick="closeServicePitchModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs font-semibold">إغلاق</button>
+                <button onclick="copyPitchMessage()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow flex items-center gap-1.5">
+                    <i class="fa-solid fa-copy"></i> نسخ النص للارسال
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Edit Targets & Plan -->
+    <div id="plan-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+                <h3 class="font-bold text-slate-800 text-base">تحديث الأهداف الشهرية</h3>
+                <button onclick="closeEditPlanModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="plan-form" onsubmit="savePlanTargets(event)" class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">عدد زيارات الأطباء المستهدفة شهرياً:</label>
+                    <input type="number" id="target-doc-input" required class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">عدد تعاقدات المستشفيات والجهات المستهدفة:</label>
+                    <input type="number" id="target-inst-input" required class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">مستهدف العوائد أو المرضى المحالين:</label>
+                    <input type="number" id="target-rev-input" required class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg">
+                </div>
+                <div class="flex justify-end gap-2 pt-2 border-t border-slate-200">
+                    <button type="button" onclick="closeEditPlanModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl font-semibold">إلغاء</button>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl font-bold shadow">حفظ الأهداف</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Add / Edit User (لإدارة المستخدمين والصلاحيات وتعديل كلمة السر) -->
+    <div id="user-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+                <h3 id="user-modal-title" class="font-bold text-slate-800 text-base">إضافة مستخدم جديد</h3>
+                <button onclick="closeUserModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="user-form" onsubmit="saveUser(event)" class="space-y-3 text-xs">
+                <input type="hidden" id="editing-user-original">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">اسم المستخدم (للدخول) *</label>
+                    <input type="text" id="u-username" required autocomplete="off" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">الاسم الكامل / المسمى *</label>
+                    <input type="text" id="u-fullname" required autocomplete="off" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">كلمة المرور الجديدة *</label>
+                    <input type="text" id="u-password" required autocomplete="new-password" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg" placeholder="أدخل كلمة المرور">
+                </div>
+
+                <div class="border-t border-slate-200 pt-3">
+                    <label class="block font-bold text-slate-800 mb-2">صلاحيات الوصول للأقسام:</label>
+                    <div class="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="perm_dashboard" value="dashboard" class="rounded text-blue-600"> لوحة المؤشرات
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="perm_visits" value="visits" class="rounded text-blue-600"> إدارة الزيارات الميدانية
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="perm_services" value="services" class="rounded text-blue-600"> عرض الخدمات الطبية
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="perm_plan" value="plan" class="rounded text-blue-600"> الخطة والأهداف
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="perm_reports" value="reports" class="rounded text-blue-600"> التقارير الاحترافية
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="perm_users" value="users" class="rounded text-blue-600"> إدارة المستخدمين والصلاحيات
+                        </label>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-200 pt-3">
+                    <label class="block font-bold text-slate-800 mb-2">الصلاحيات الخاصة الإضافية:</label>
+                    <div class="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <label class="flex items-center gap-2 cursor-pointer font-semibold text-blue-700">
+                            <input type="checkbox" id="perm_can_change_password" value="can_change_password" class="rounded text-blue-600"> منح صلاحية تعديل كلمة السر
+                        </label>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2 border-t border-slate-200">
+                    <button type="button" onclick="closeUserModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl font-semibold">إلغاء</button>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl font-bold shadow">حفظ المستخدم</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Change My Password (خاص بتغيير كلمة المرور الشخصية للمستخدم العادي) -->
+    <div id="change-my-password-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+                <h3 class="font-bold text-slate-800 text-base">تغيير كلمة المرور الشخصية</h3>
+                <button onclick="closeChangeMyPasswordModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="change-my-password-form" onsubmit="saveMyNewPassword(event)" class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">كلمة المرور الحالية *</label>
+                    <input type="password" id="current-pass-input" required class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">كلمة المرور الجديدة *</label>
+                    <input type="password" id="new-pass-input" required class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg">
+                </div>
+                <div class="flex justify-end gap-2 pt-2 border-t border-slate-200">
+                    <button type="button" onclick="closeChangeMyPasswordModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl font-semibold">إلغاء</button>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl font-bold shadow">حفظ التغيير</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Backup & Cloud Sync -->
+    <div id="backup-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+                <h3 class="font-bold text-slate-800 text-base"><i class="fa-solid fa-database text-blue-600 ml-2"></i> إدارة النسخ الاحتياطي والمزامنة السحابية</h3>
+                <button onclick="closeBackupModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="space-y-4 text-xs text-slate-700">
+                <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl space-y-1">
+                    <h4 class="font-bold text-blue-900"><i class="fa-solid fa-shield-halved text-blue-600"></i> النسخ الاحتياطي التلقائي</h4>
+                    <p class="text-slate-600">يقوم التطبيق تلقائياً بحفظ نسخة احتياطية محلية في جهازك (هاتف أو كمبيوتر) عند كل تعديل أو فتح للتطبيق.</p>
+                    <span id="last-auto-backup" class="text-[11px] font-semibold text-blue-700 block mt-1">آخر نسخ تلقائي: لم يتم بعد</span>
+                </div>
+
+                <div class="border-t border-slate-200 pt-3 space-y-2">
+                    <h4 class="font-bold text-slate-800">النسخ الاحتياطي اليدوي والاستعادة</h4>
+                    <div class="flex gap-2">
+                        <button onclick="exportDataJSON()" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white py-2.5 rounded-xl font-bold shadow flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-download"></i> تصدير ملف النسخة (JSON)
+                        </button>
+                        <label class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-bold shadow flex items-center justify-center gap-2 cursor-pointer">
+                            <i class="fa-solid fa-upload"></i> استعادة من ملف
+                            <input type="file" id="import-file-input" onchange="importDataJSON(event)" accept=".json" class="hidden">
+                        </label>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-200 pt-3 space-y-2">
+                    <h4 class="font-bold text-slate-800">ربط السحابة (Google Drive / WebDAV)</h4>
+                    <p class="text-slate-500 text-[11px]">أدخل رابط السحابة أو إعدادات المزامنة لمشاركة البيانات بين الكمبيوتر والهاتف عند اتصال الإنترنت:</p>
+                    <input type="text" id="cloud-sync-url" placeholder="https://your-cloud-storage-api.com/sync" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg">
+                    <button onclick="saveCloudConfig()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-xl font-bold shadow">
+                        حفظ ربط السحابة ومزامنة الآن
+                    </button>
+                </div>
+            </div>
+            <div class="flex justify-end pt-2 border-t border-slate-200">
+                <button onclick="closeBackupModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs font-semibold">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500 no-print">
+        <p>جميع الحقوق محفوظة © منظومة التسويق الطبي الاحترافية | تصميم وإشراف: خلدون أحمد</p>
+    </footer>
+
+    <!-- Application JavaScript -->
+    <script>
+        // --- DATA STRUCTURES & INITIALIZATION ---
+        const ALL_TABS = [
+            { id: 'dashboard', name: 'لوحة المؤشرات', icon: 'fa-chart-pie' },
+            { id: 'visits', name: 'إدارة الزيارات', icon: 'fa-address-book' },
+            { id: 'services', name: 'عرض الخدمات الطبية', icon: 'fa-hand-holding-medical' },
+            { id: 'plan', name: 'الخطة والأهداف', icon: 'fa-bullseye' },
+            { id: 'reports', name: 'التقارير الاحترافية', icon: 'fa-file-contract' },
+            { id: 'users', name: 'إدارة المستخدمين', icon: 'fa-users-gear' }
+        ];
+
+        let appData = {
+            currentUser: null,
+            users: [
+                { username: 'admin', fullName: 'مدير النظام (خلدون أحمد)', password: '1234', permissions: ['dashboard', 'visits', 'services', 'plan', 'reports', 'users'], canChangePassword: true }
+            ],
+            visits: [],
+            services: [
+                { id: 1, name: "قسم الطوارئ والإسعاف 24/7", category: "طوارئ", desc: "خدمة إسعاف مجهزة بالكامل وكوادر طبية طوارئ على مدار الساعة.", price: "حسب التغطية التأمينية" },
+                { id: 2, name: "وحدة الأشعة المتقدمة (MRI & CT)", category: "أشعة", desc: "أحدث أجهزة الرنين المغناطيسي والأشعة المقطعية بدقة فائقة وتقارير فورية.", price: "خصم خاص للجهات المتعاقدة 25%" },
+                { id: 3, name: "المختبر الطبي والتحاليل الشاملة", category: "مختبر", desc: "نتائج مخبرية دقيقة ومعتمدة مع خدمة سحب العينات من مقر العميل أو المستشفى.", price: "أسعار تفضيلية للإحالات" },
+                { id: 4, name: "عيادات التخصصات الدقيقة (باطنة، أطفال، عظام)", category: "عيادات", desc: "استشاريون معتمدون لتقديم استشارات طبية متقدمة وحالات منومة.", price: "نظام إحالة مرن وعمولة" },
+                { id: 5, name: "برامج الفحص الطبي الشامل للشركات (Check-up)", category: "شركات", desc: "باقات فحص دوري للموظفين والكوادر الإدارية والتجارية.", price: "باقات تنافسية مخصصة" }
+            ],
+            targets: {
+                doctors: 40,
+                institutions: 10,
+                revenue: 15
+            },
+            cloudUrl: "",
+            lastBackup: ""
+        };
+
+        let visitsTypeChartInstance = null;
+
+        // --- Supabase Client Configuration ---
+        const SUPABASE_URL = 'https://rnkyzkkscqrfmlkfuwhd.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJua3l6a2tzY3FyZm1sa2Z1d2hkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyMTA2NTcsImV4cCI6MjEwODc4NjY1N30.O1ysUAVsgvSnzudy6atr4UUXc2kElL_-xu8T2WcxvwI';
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        window.onload = async function() {
+            loadFromLocalStorage();
+            initDateFields();
+            
+            // جلب البيانات المحدثة تلقائياً من سوبباس عند فتح التطبيق
+            await syncDataFromCloud();
+
+            window.addEventListener('online', updateOnlineStatus);
+            window.addEventListener('offline', updateOnlineStatus);
+            updateOnlineStatus();
+
+            document.getElementById('loginUsername').value = '';
+            document.getElementById('loginPassword').value = '';
+        };
+
+        async function syncDataFromCloud() {
+            try {
+                console.log("جاري جلب البيانات من Supabase...");
+                
+                // جلب جدول المستخدمين مع معالجة الأخطاء بوضوح
+                const { data: usersData, error: userErr } = await supabaseClient.from('users').select('*');
+                if (userErr) {
+                    console.error("خطأ في جلب المستخدمين من Supabase:", userErr.message);
+                } else if (usersData && usersData.length > 0) {
+                    appData.users = usersData;
+                }
+
+                // جلب جدول الزيارات
+                const { data: visitsData, error: visitErr } = await supabaseClient.from('visits').select('*');
+                if (visitErr) {
+                    console.error("خطأ في جلب الزيارات من Supabase:", visitErr.message);
+                } else if (visitsData) {
+                    appData.visits = visitsData;
+                }
+                
+                saveToLocalStorage();
+                renderAll();
+                console.log("تمت المزامنة مع سوبباس بنجاح");
+            } catch (err) {
+                console.error("خطأ في المزامنة السحابية:", err);
+            }
+        }
+
+        function updateOnlineStatus() {
+            const dot = document.getElementById('connection-status-dot');
+            const txt = document.getElementById('connection-status-text');
+            if (!dot || !txt) return;
+            if (navigator.onLine) {
+                dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block";
+                txt.textContent = "متصل بالإنترنت (جاهز للمزامنة)";
+            } else {
+                dot.className = "w-2.5 h-2.5 rounded-full bg-amber-400 inline-block";
+                txt.textContent = "يعمل دون انترنت (محلي)";
+            }
+        }
+
+        function loadFromLocalStorage() {
+            const saved = localStorage.getItem('medical_marketing_data_v3');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (parsed && parsed.users) {
+                        appData = parsed;
+                    }
+                } catch(e) {
+                    console.error("Error parsing saved data", e);
+                }
+            } else {
+                saveToLocalStorage();
+            }
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem('medical_marketing_data_v3', JSON.stringify(appData));
+            autoBackupData();
+        }
+
+        function autoBackupData() {
+            const now = new Date().toLocaleString('ar-SA');
+            appData.lastBackup = now;
+            localStorage.setItem('medical_marketing_auto_backup', JSON.stringify(appData));
+            const backupEl = document.getElementById('last-auto-backup');
+            if (backupEl) {
+                backupEl.textContent = "آخر نسخ تلقائي داخل الجهاز: " + now;
+            }
+        }
+
+        // --- AUTHENTICATION & LOGIN ---
+        function togglePasswordVisibility() {
+            const pwdInput = document.getElementById('loginPassword');
+            const icon = document.getElementById('togglePasswordIcon');
+            if (pwdInput.type === 'password') {
+                pwdInput.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                pwdInput.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            const u = document.getElementById('loginUsername').value.trim();
+            const p = document.getElementById('loginPassword').value.trim();
+            const errorDiv = document.getElementById('loginError');
+
+            const foundUser = appData.users.find(usr => usr.username.trim() === u && usr.password.trim() === p);
+            if (foundUser) {
+                if (foundUser.username === 'admin') {
+                    foundUser.permissions = ALL_TABS.map(t => t.id);
+                    foundUser.canChangePassword = true;
+                }
+                appData.currentUser = foundUser;
+                errorDiv.classList.add('hidden');
+                
+                document.getElementById('loginScreen').classList.add('hidden');
+                document.getElementById('appContainer').classList.remove('flex');
+                document.getElementById('appContainer').classList.remove('hidden');
+                document.getElementById('appContainer').style.display = 'flex';
+
+                document.getElementById('bannerUserName').textContent = `مرحباً بك، ${foundUser.fullName}`;
+                document.getElementById('headerUserSubtitle').textContent = foundUser.username === 'admin' ? 'مدير النظام (خلدون أحمد)' : 'مندوب تسويق';
+
+                buildNavigation();
+                initAfterLogin();
+            } else {
+                errorDiv.classList.remove('hidden');
+            }
+        }
+
+        function handleLogout() {
+            appData.currentUser = null;
+            document.getElementById('appContainer').style.display = 'none';
+            document.getElementById('appContainer').classList.add('hidden');
+            document.getElementById('loginScreen').classList.remove('hidden');
+            document.getElementById('loginUsername').value = '';
+            document.getElementById('loginPassword').value = '';
+            document.getElementById('loginPassword').type = 'password';
+            document.getElementById('togglePasswordIcon').className = 'fa-solid fa-eye text-xs';
+        }
+
+        function buildNavigation() {
+            const navContainer = document.getElementById('mainNavContainer');
+            navContainer.innerHTML = '';
+
+            const userPerms = appData.currentUser.username === 'admin' 
+                ? ALL_TABS.map(t => t.id) 
+                : (appData.currentUser.permissions || []);
+
+            let firstTab = null;
+
+            ALL_TABS.forEach(tab => {
+                if (userPerms.includes(tab.id)) {
+                    if (!firstTab) firstTab = tab.id;
+                    navContainer.innerHTML += `
+                        <button onclick="switchTab('${tab.id}')" id="nav-btn-${tab.id}" class="tab-btn px-4 py-3 font-semibold text-sm border-b-2 border-transparent text-slate-600 hover:text-blue-600 flex items-center gap-2 transition">
+                            <i class="fa-solid ${tab.icon}"></i> ${tab.name}
+                        </button>
+                    `;
+                }
+            });
+
+            if (firstTab) {
+                switchTab(firstTab);
+            }
+        }
+
+        function initAfterLogin() {
+            renderAll();
+            setupServiceDropdowns();
+            autoBackupData();
+        }
+
+        // --- NAVIGATION & TABS ---
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            const targetEl = document.getElementById('tab-' + tabId);
+            if (targetEl) targetEl.classList.remove('hidden');
+
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('border-blue-600', 'text-blue-600');
+                btn.classList.add('border-transparent', 'text-slate-600');
+            });
+
+            const activeBtn = document.getElementById('nav-btn-' + tabId);
+            if (activeBtn) {
+                activeBtn.classList.remove('border-transparent', 'text-slate-600');
+                activeBtn.classList.add('border-blue-600', 'text-blue-600');
+            }
+
+            if (tabId === 'dashboard') {
+                renderDashboard();
+            } else if (tabId === 'visits') {
+                renderVisitsTable();
+            } else if (tabId === 'services') {
+                renderServicesCatalog();
+            } else if (tabId === 'plan') {
+                renderPlanProgress();
+            } else if (tabId === 'reports') {
+                generateReport('weekly');
+            } else if (tabId === 'users') {
+                renderUsersTable();
+            }
+        }
+
+        // --- RENDER FUNCTIONS ---
+        function renderAll() {
+            renderDashboard();
+            renderVisitsTable();
+            renderServicesCatalog();
+            renderPlanProgress();
+            setupServiceDropdowns();
+            if (appData.currentUser && appData.currentUser.username === 'admin') {
+                renderUsersTable();
+            }
+        }
+
+        function renderDashboard() {
+            const totalVisits = appData.visits.length;
+            const contracts = appData.visits.filter(v => v.status === 'تم التعاقد').length;
+            const doctors = appData.visits.filter(v => v.type === 'طبيب').length;
+            const institutions = appData.visits.filter(v => v.type === 'مستشفى' || v.type === 'شركة تأمين').length;
+
+            document.getElementById('stat-total-visits').textContent = totalVisits;
+            document.getElementById('stat-contracts').textContent = contracts;
+            document.getElementById('stat-doctors').textContent = doctors;
+            document.getElementById('stat-institutions').textContent = institutions;
+
+            const followupList = document.getElementById('followup-list');
+            const followups = appData.visits.filter(v => v.followup && v.followup >= new Date().toISOString().split('T')[0]);
+            document.getElementById('followup-count').textContent = followups.length;
+
+            if (followups.length === 0) {
+                followupList.innerHTML = `<p class="text-xs text-slate-400 text-center py-6">لا توجد زيارات متابعة قريبة مجدولة.</p>`;
+            } else {
+                followupList.innerHTML = followups.map(v => `
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex justify-between items-center text-xs">
+                        <div>
+                            <span class="font-bold text-slate-800 block">${v.name}</span>
+                            <span class="text-slate-500 text-[11px]"><i class="fa-solid fa-calendar text-blue-600 ml-1"></i> موعد: ${v.followup}</span>
+                        </div>
+                        <span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-md">${v.type}</span>
+                    </div>
+                `).join('');
+            }
+
+            renderChart(totalVisits, doctors, institutions, contracts);
+        }
+
+        function renderChart(total, docs, insts, contracts) {
+            const ctx = document.getElementById('visitsTypeChart').getContext('2d');
+            const otherCount = total - docs - insts;
+            
+            if (visitsTypeChartInstance) {
+                visitsTypeChartInstance.destroy();
+            }
+
+            visitsTypeChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['أطباء / عيادات', 'مستشفيات وتأمين', 'جهات أخرى', 'تعاقدات مؤكدة'],
+                    datasets: [{
+                        data: [docs, insts, Math.max(0, otherCount), contracts],
+                        backgroundColor: ['#2563eb', '#059669', '#d97706', '#7c3aed'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: { family: 'Cairo', size: 11 }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- VISITS MANAGEMENT ---
+        function renderVisitsTable() {
+            const tbody = document.getElementById('visits-table-body');
+            const searchInput = document.getElementById('search-visits-input');
+            const searchVal = searchInput ? searchInput.value.toLowerCase() : '';
+            const filterType = document.getElementById('filter-type').value;
+            const filterStatus = document.getElementById('filter-status').value;
+
+            let filtered = appData.visits.filter(v => {
+                const matchSearch = v.name.toLowerCase().includes(searchVal) || (v.notes && v.notes.toLowerCase().includes(searchVal));
+                const matchType = filterType === 'all' || v.type === filterType;
+                const matchStatus = filterStatus === 'all' || v.status === filterStatus;
+                return matchSearch && matchType && matchStatus;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400">لا توجد زيارات مسجلة حتى الآن. ابدأ بتسجيل زيارتك الأولى.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(v => {
+                let badgeColor = 'bg-blue-100 text-blue-800';
+                if (v.status === 'تم التعاقد') badgeColor = 'bg-emerald-100 text-emerald-800';
+                else if (v.status === 'متابعة مطلوبة') badgeColor = 'bg-amber-100 text-amber-800';
+                else if (v.status === 'مؤجلة / اعتذار') badgeColor = 'bg-rose-100 text-rose-800';
+
+                return `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="p-3.5 font-medium">${v.date}</td>
+                        <td class="p-3.5 font-bold text-slate-900">${v.name}<br><span class="text-[11px] font-normal text-slate-500">${v.phone || ''}</span></td>
+                        <td class="p-3.5"><span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md font-semibold">${v.type}</span></td>
+                        <td class="p-3.5">${v.service}</td>
+                        <td class="p-3.5"><span class="${badgeColor} px-2.5 py-1 rounded-full font-bold text-[11px]">${v.status}</span></td>
+                        <td class="p-3.5 text-slate-600 max-w-xs truncate">${v.notes || '-'}</td>
+                        <td class="p-3.5 text-center space-x-1 space-x-reverse">
+                            <button onclick="editVisit(${v.id})" class="bg-blue-50 text-blue-600 hover:bg-blue-100 p-1.5 rounded-lg transition" title="تعديل"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="deleteVisit(${v.id})" class="bg-rose-50 text-rose-600 hover:bg-rose-100 p-1.5 rounded-lg transition" title="حذف"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function openNewVisitModal() {
+            document.getElementById('visit-form').reset();
+            document.getElementById('visit-id').value = '';
+            document.getElementById('visit-modal-title').textContent = 'تسجيل زيارة ميدانية جديدة';
+            document.getElementById('v-date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('visit-modal').classList.remove('hidden');
+        }
+
+        function closeVisitModal() {
+            document.getElementById('visit-modal').classList.add('hidden');
+        }
+
+        async function saveVisit(e) {
+            e.preventDefault();
+            const id = document.getElementById('visit-id').value;
+            const visitData = {
+                id: id ? parseInt(id) : Date.now(),
+                name: document.getElementById('v-name').value,
+                type: document.getElementById('v-type').value,
+                date: document.getElementById('v-date').value,
+                status: document.getElementById('v-status').value,
+                service: document.getElementById('v-service').value,
+                phone: document.getElementById('v-phone').value,
+                followup: document.getElementById('v-followup').value,
+                notes: document.getElementById('v-notes').value
+            };
+
+            if (id) {
+                const index = appData.visits.findIndex(v => v.id === parseInt(id));
+                if (index !== -1) appData.visits[index] = visitData;
+                showToast("تم تحديث الزيارة بنجاح", "success");
+            } else {
+                appData.visits.unshift(visitData);
+                showToast("تمت إضافة الزيارة الميدانية بنجاح", "success");
+            }
+
+            saveToLocalStorage();
+
+            try {
+                const { error } = await supabaseClient
+                    .from('visits')
+                    .upsert([visitData], { onConflict: 'id' });
+                if (error) {
+                    console.error("خطأ في الحفظ السحابي:", error.message);
+                }
+            } catch (err) {
+                console.error("استثناء الاتصال:", err);
+            }
+
+            closeVisitModal();
+            renderAll();
+        }
+
+        function editVisit(id) {
+            const visit = appData.visits.find(v => v.id === id);
+            if (!visit) return;
+
+            document.getElementById('visit-id').value = visit.id;
+            document.getElementById('v-name').value = visit.name;
+            document.getElementById('v-type').value = visit.type;
+            document.getElementById('v-date').value = visit.date;
+            document.getElementById('v-status').value = visit.status;
+            document.getElementById('v-service').value = visit.service;
+            document.getElementById('v-phone').value = visit.phone || '';
+            document.getElementById('v-followup').value = visit.followup || '';
+            document.getElementById('v-notes').value = visit.notes || '';
+
+            document.getElementById('visit-modal-title').textContent = 'تعديل بيانات الزيارة الميدانية';
+            document.getElementById('visit-modal').classList.remove('hidden');
+        }
+
+        async function deleteVisit(id) {
+            if (confirm("هل أنت متأكد من حذف هذه الزيارة من السجلات؟")) {
+                appData.visits = appData.visits.filter(v => v.id !== id);
+                saveToLocalStorage();
+                renderAll();
+
+                try {
+                    const { error } = await supabaseClient
+                        .from('visits')
+                        .delete()
+                        .eq('id', id);
+                    if (error) {
+                        console.error("خطأ في الحذف من سوبباس:", error.message);
+                    }
+                } catch (err) {
+                    console.error("استثناء الحذف:", err);
+                }
+
+                showToast("تم حذف الزيارة بنجاح", "info");
+            }
+        }
+
+        // --- SERVICES CATALOG ---
+        function renderServicesCatalog() {
+            const grid = document.getElementById('services-grid');
+            if (!grid) return;
+            grid.innerHTML = appData.services.map(s => `
+                <div class="bg-slate-50 border border-slate-200 p-5 rounded-2xl flex flex-col justify-between shadow-sm hover:shadow-md transition">
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <span class="bg-blue-100 text-blue-800 text-[11px] font-bold px-2.5 py-1 rounded-md">${s.category}</span>
+                            <i class="fa-solid fa-notes-medical text-blue-600 text-xl"></i>
+                        </div>
+                        <h3 class="font-bold text-slate-900 text-base mb-2">${s.name}</h3>
+                        <p class="text-xs text-slate-600 leading-relaxed mb-4">${s.desc}</p>
+                    </div>
+                    <div class="pt-3 border-t border-slate-200 flex justify-between items-center">
+                        <span class="text-xs font-bold text-emerald-600">${s.price}</span>
+                        <button onclick="pitchSpecificService('${s.name}')" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl text-xs font-semibold shadow transition">
+                            <i class="fa-solid fa-bullhorn ml-1"></i> عرض لعميل
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function setupServiceDropdowns() {
+            const selects = [document.getElementById('v-service'), document.getElementById('pitch-service-select')];
+            selects.forEach(sel => {
+                if (!sel) return;
+                sel.innerHTML = appData.services.map(s => `<option value="${s.name}">${s.name} (${s.category})</option>`).join('');
+            });
+        }
+
+        function openServicePitchModal() {
+            document.getElementById('pitch-client-name').value = '';
+            updatePitchMessagePreview();
+            document.getElementById('service-pitch-modal').classList.remove('hidden');
+        }
+
+        function closeServicePitchModal() {
+            document.getElementById('service-pitch-modal').classList.add('hidden');
+        }
+
+        function pitchSpecificService(serviceName) {
+            document.getElementById('pitch-service-select').value = serviceName;
+            document.getElementById('pitch-client-name').value = 'د. ';
+            updatePitchMessagePreview();
+            document.getElementById('service-pitch-modal').classList.remove('hidden');
+        }
+
+        document.getElementById('pitch-service-select')?.addEventListener('change', updatePitchMessagePreview);
+        document.getElementById('pitch-client-name')?.addEventListener('input', updatePitchMessagePreview);
+
+        function updatePitchMessagePreview() {
+            const service = document.getElementById('pitch-service-select').value;
+            const client = document.getElementById('pitch-client-name').value || 'العميل الكريم';
+            const msg = `السلام عليكم ${client},\nيسعدنا في مركزنا الطبي أن نضع بين أيديكم تفاصيل خدمة (${service}) والتي تم تجهيزها بأحدث التقنيات الطبية والكوادر الاستشارية لخدمة مرضاكم بأعلى معايير الجودة وباقات تعاون تفضيلية.\nنتشرف بزيارتكم أو تواصلكم معنا للتعاون المشترك.`;
+            document.getElementById('pitch-message-preview').value = msg;
+        }
+
+        function copyPitchMessage() {
+            const text = document.getElementById('pitch-message-preview').value;
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showToast("تم نسخ النص التسويقي بنجاح!", "success");
+            } catch (err) {
+                showToast("تعذر النسخ تلقائياً", "error");
+            }
+            document.body.removeChild(textArea);
+            closeServicePitchModal();
+        }
+
+        // --- PLAN & TARGETS ---
+        function renderPlanProgress() {
+            const totalVisits = appData.visits.length;
+            const contracts = appData.visits.filter(v => v.status === 'تم التعاقد').length;
+            const docVisits = appData.visits.filter(v => v.type === 'طبيب').length;
+
+            const tDoc = appData.targets.doctors;
+            const tInst = appData.targets.institutions;
+            const tRev = appData.targets.revenue;
+
+            const pDoc = Math.min(100, Math.round((docVisits / (tDoc || 1)) * 100));
+            const pInst = Math.min(100, Math.round((contracts / (tInst || 1)) * 100));
+            const pRev = Math.min(100, Math.round((totalVisits / (tRev || 1)) * 100));
+
+            document.getElementById('target-doc-progress').textContent = `تم انجاز ${docVisits} من ${tDoc}`;
+            document.getElementById('target-doc-percent').textContent = pDoc + '%';
+            document.getElementById('bar-doc').style.width = pDoc + '%';
+
+            document.getElementById('target-inst-progress').textContent = `تم انجاز ${contracts} من ${tInst}`;
+            document.getElementById('target-inst-percent').textContent = pInst + '%';
+            document.getElementById('bar-inst').style.width = pInst + '%';
+
+            document.getElementById('target-rev-progress').textContent = `تم انجاز ${totalVisits} من ${tRev}`;
+            document.getElementById('target-rev-percent').textContent = pRev + '%';
+            document.getElementById('bar-rev').style.width = pRev + '%';
+        }
+
+        function openEditPlanModal() {
+            document.getElementById('target-doc-input').value = appData.targets.doctors;
+            document.getElementById('target-inst-input').value = appData.targets.institutions;
+            document.getElementById('target-rev-input').value = appData.targets.revenue;
+            document.getElementById('plan-modal').classList.remove('hidden');
+        }
+
+        function closeEditPlanModal() {
+            document.getElementById('plan-modal').classList.add('hidden');
+        }
+
+        function savePlanTargets(e) {
+            e.preventDefault();
+            appData.targets.doctors = parseInt(document.getElementById('target-doc-input').value) || 30;
+            appData.targets.institutions = parseInt(document.getElementById('target-inst-input').value) || 10;
+            appData.targets.revenue = parseInt(document.getElementById('target-rev-input').value) || 20;
+
+            saveToLocalStorage();
+            closeEditPlanModal();
+            renderPlanProgress();
+            showToast("تم تحديث خطة الأهداف بنجاح", "success");
+        }
+
+        // --- REPORTS ---
+        function generateReport(type) {
+            const heading = type === 'weekly' ? 'التقرير التسويقي الأسبوعي للإدارة الطبية' : 'التقرير التسويقي الشهري الشامل';
+            document.getElementById('report-title-heading').textContent = heading;
+            document.getElementById('report-date-sub').textContent = `فترة التقرير: ${type === 'weekly' ? 'الأسبوع الحالي' : 'الشهر الحالي'} | تاريخ الإصدار: ${new Date().toLocaleDateString('ar-SA')}`;
+
+            const total = appData.visits.length;
+            const contracts = appData.visits.filter(v => v.status === 'تم التعاقد').length;
+            const docs = appData.visits.filter(v => v.type === 'طبيب').length;
+            const rate = Math.min(100, Math.round((contracts / (appData.targets.institutions || 1)) * 100));
+
+            document.getElementById('rep-total-visits').textContent = total;
+            document.getElementById('rep-total-contracts').textContent = contracts;
+            document.getElementById('rep-total-doctors').textContent = docs;
+            document.getElementById('rep-achievement-rate').textContent = rate + '%';
+
+            const tbody = document.getElementById('report-table-body');
+            if (appData.visits.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400">لا توجد زيارات مسجلة في الفترة الحالية.</td></tr>`;
+            } else {
+                tbody.innerHTML = appData.visits.map(v => `
+                    <tr>
+                        <td class="p-2 border border-slate-200">${v.date}</td>
+                        <td class="p-2 border border-slate-200 font-bold">${v.name}</td>
+                        <td class="p-2 border border-slate-200">${v.type}</td>
+                        <td class="p-2 border border-slate-200 font-bold text-blue-700">${v.status}</td>
+                        <td class="p-2 border border-slate-200">${v.notes || 'تم استعراض الخدمات الطبية بنجاح'}</td>
+                    </tr>
+                `).join('');
+            }
+            showToast(`تم إنشاء ${type === 'weekly' ? 'التقرير الأسبوعي' : 'التقرير الشهري'} بنجاح`, "success");
+        }
+
+        // --- USERS & PERMISSIONS MANAGEMENT ---
+        function renderUsersTable() {
+            const tbody = document.getElementById('users-table-body');
+            if (!tbody) return;
+            tbody.innerHTML = appData.users.map(u => {
+                const isSuper = u.username === 'admin';
+                const permsText = isSuper ? '<span class="text-blue-600 font-bold">صلاحيات كاملة (مدير النظام)</span>' : (u.permissions || []).map(p => {
+                    const tabObj = ALL_TABS.find(t => t.id === p);
+                    return tabObj ? `<span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] m-0.5 inline-block">${tabObj.name}</span>` : '';
+                }).join(' ');
+
+                const changePassBadge = u.canChangePassword ? '<span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-[10px] mr-1">صلاحية تعديل كلمة السر: مسموح</span>' : '<span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px] mr-1">تعديل كلمة السر: غير مسموح</span>';
+
+                return `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="p-3.5 font-bold text-slate-900">${u.username} ${isSuper ? '<span class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full mr-1">رئيسي</span>' : ''}</td>
+                        <td class="p-3.5 text-slate-600">${u.fullName}</td>
+                        <td class="p-3.5">${permsText} <br class="my-1">${changePassBadge}</td>
+                        <td class="p-3.5 text-center space-x-1 space-x-reverse">
+                            <button onclick="editUser('${u.username}')" class="bg-blue-50 text-blue-600 hover:bg-blue-100 p-1.5 rounded-lg transition" title="تعديل"><i class="fa-solid fa-pen"></i></button>
+                            ${!isSuper ? `<button onclick="deleteUser('${u.username}')" class="bg-rose-50 text-rose-600 hover:bg-rose-100 p-1.5 rounded-lg transition" title="حذف"><i class="fa-solid fa-trash"></i></button>` : ''}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function openUserModal() {
+            document.getElementById('user-form').reset();
+            document.getElementById('editing-user-original').value = '';
+            document.getElementById('user-modal-title').textContent = 'إضافة مستخدم جديد';
+            ALL_TABS.forEach(t => {
+                const chk = document.getElementById(`perm_${t.id}`);
+                if (chk) chk.checked = true;
+            });
+            const passChk = document.getElementById('perm_can_change_password');
+            if (passChk) passChk.checked = true;
+            document.getElementById('user-modal').classList.remove('hidden');
+        }
+
+        function closeUserModal() {
+            document.getElementById('user-modal').classList.add('hidden');
+        }
+
+        function editUser(username) {
+            const usr = appData.users.find(u => u.username === username);
+            if (!usr) return;
+
+            document.getElementById('user-modal-title').textContent = 'تعديل بيانات المستخدم والصلاحيات';
+            document.getElementById('editing-user-original').value = usr.username;
+            document.getElementById('u-username').value = usr.username;
+            document.getElementById('u-fullname').value = usr.fullName;
+            document.getElementById('u-password').value = usr.password;
+
+            ALL_TABS.forEach(t => {
+                const chk = document.getElementById(`perm_${t.id}`);
+                if (chk) {
+                    chk.checked = username === 'admin' || (usr.permissions && usr.permissions.includes(t.id));
+                }
+            });
+
+            const passChk = document.getElementById('perm_can_change_password');
+            if (passChk) {
+                passChk.checked = username === 'admin' || !!usr.canChangePassword;
+            }
+
+            document.getElementById('user-modal').classList.remove('hidden');
+        }
+
+        async function saveUser(e) {
+            e.preventDefault();
+            const original = document.getElementById('editing-user-original').value;
+            const uUsername = document.getElementById('u-username').value.trim();
+            const uFullName = document.getElementById('u-fullname').value.trim();
+            const uPassword = document.getElementById('u-password').value.trim();
+
+            let selectedPerms = [];
+            let canChangePass = document.getElementById('perm_can_change_password').checked;
+
+            if (uUsername === 'admin') {
+                selectedPerms = ALL_TABS.map(t => t.id);
+                canChangePass = true;
+            } else {
+                ALL_TABS.forEach(t => {
+                    const chk = document.getElementById(`perm_${t.id}`);
+                    if (chk && chk.checked) selectedPerms.push(t.id);
+                });
+            }
+
+            const userDataObj = { 
+                username: uUsername, 
+                fullName: uFullName, 
+                password: uPassword, 
+                permissions: selectedPerms, 
+                canChangePassword: canChangePass 
+            };
+
+            if (original) {
+                const index = appData.users.findIndex(u => u.username === original);
+                if (index !== -1) {
+                    appData.users[index] = userDataObj;
+                }
+                showToast("تم تحديث المستخدم والصلاحيات بنجاح", "success");
+            } else {
+                if (appData.users.some(u => u.username === uUsername)) {
+                    showToast("اسم المستخدم موجود مسبقاً، اختر اسماً آخر", "error");
+                    return;
+                }
+                appData.users.push(userDataObj);
+                showToast("تمت إضافة المستخدم بنجاح", "success");
+            }
+
+            saveToLocalStorage();
+
+            // حفظ المستخدم سحابياً مع تحديد حقل التحديد (onConflict)
+            try {
+                const { error } = await supabaseClient
+                    .from('users')
+                    .upsert([userDataObj], { onConflict: 'username' });
+                if (error) {
+                    console.error("خطأ حفظ المستخدم سحابياً:", error.message);
+                    showToast("تم الحفظ محلياً ولكن فشل التزامن السحابي", "error");
+                }
+            } catch (err) {
+                console.error("خطأ الشبكة أو الاتصال:", err);
+            }
+
+            closeUserModal();
+            renderUsersTable();
+        }
+
+        async function deleteUser(username) {
+            if (username === 'admin') {
+                showToast("لا يمكن حذف حساب مدير النظام الرئيسي", "error");
+                return;
+            }
+            if (confirm("هل أنت متأكد من حذف هذا المستخدم؟")) {
+                appData.users = appData.users.filter(u => u.username !== username);
+                saveToLocalStorage();
+                renderUsersTable();
+
+                try {
+                    await supabaseClient.from('users').delete().eq('username', username);
+                } catch (err) {
+                    console.error("خطأ الحذف سحابياً:", err);
+                }
+
+                showToast("تم حذف المستخدم بنجاح", "info");
+            }
+        }
+
+        // --- CHANGE MY PASSWORD FUNCTIONS ---
+        function openChangeMyPasswordModal() {
+            if (!appData.currentUser) return;
+            if (!appData.currentUser.canChangePassword && appData.currentUser.username !== 'admin') {
+                showToast("عذراً، لا تمتلك صلاحية تعديل كلمة السر. يرجى مراجعة مدير النظام.", "error");
+                return;
+            }
+            document.getElementById('change-my-password-form').reset();
+            document.getElementById('change-my-password-modal').classList.remove('hidden');
+        }
+
+        function closeChangeMyPasswordModal() {
+            document.getElementById('change-my-password-modal').classList.add('hidden');
+        }
+
+        async function saveMyNewPassword(e) {
+            e.preventDefault();
+            const currentPass = document.getElementById('current-pass-input').value.trim();
+            const newPass = document.getElementById('new-pass-input').value.trim();
+
+            if (appData.currentUser.password !== currentPass) {
+                showToast("كلمة المرور الحالية غير صحيحة", "error");
+                return;
+            }
+
+            appData.currentUser.password = newPass;
+
+            const userIndex = appData.users.findIndex(u => u.username === appData.currentUser.username);
+            if (userIndex !== -1) {
+                appData.users[userIndex].password = newPass;
+            }
+
+            saveToLocalStorage();
+
+            try {
+                await supabaseClient.from('users').upsert([appData.currentUser], { onConflict: 'username' });
+            } catch (err) {
+                console.error("خطأ تحديث كلمة المرور سحابياً:", err);
+            }
+
+            closeChangeMyPasswordModal();
+            showToast("تم تغيير كلمة المرور الشخصية بنجاح", "success");
+        }
+
+        // --- BACKUP & CLOUD SYNC ---
+        function openBackupModal() {
+            document.getElementById('cloud-sync-url').value = appData.cloudUrl || '';
+            document.getElementById('backup-modal').classList.remove('hidden');
+        }
+
+        function closeBackupModal() {
+            document.getElementById('backup-modal').classList.add('hidden');
+        }
+
+        function exportDataJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
+            const dlAnchorElem = document.createElement('a');
+            dlAnchorElem.setAttribute("href", dataStr);
+            dlAnchorElem.setAttribute("download", `medical_marketing_backup_${new Date().toISOString().split('T')[0]}.json`);
+            document.body.appendChild(dlAnchorElem);
+            dlAnchorElem.click();
+            dlAnchorElem.remove();
+            showToast("تم تصدير ملف النسخة الاحتياطية بنجاح", "success");
+        }
+
+        function importDataJSON(event) {
+            const fileReader = new FileReader();
+            if (event.target.files[0]) {
+                fileReader.readAsText(event.target.files[0], "UTF-8");
+                fileReader.onload = function (e) {
+                    try {
+                        const parsed = JSON.parse(e.target.result);
+                        if (parsed && parsed.services && parsed.users) {
+                            appData = parsed;
+                            saveToLocalStorage();
+                            renderAll();
+                            closeBackupModal();
+                            showToast("تمت استعادة البيانات بنجاح تام!", "success");
+                        } else {
+                            showToast("ملف النسخة الاحتياطية غير صالح", "error");
+                        }
+                    } catch (err) {
+                        showToast("خطأ في قراءة ملف JSON", "error");
+                    }
+                };
+            }
+        }
+
+        function saveCloudConfig() {
+            const url = document.getElementById('cloud-sync-url').value;
+            appData.cloudUrl = url;
+            saveToLocalStorage();
+            showToast("تم حفظ إعدادات السحابة والمزامنة بنجاح", "success");
+            closeBackupModal();
+        }
+
+        async function syncDataNow() {
+            showToast("جاري مزامنة البيانات مع السحابة والأجهزة المتصلة...", "info");
+            await syncDataFromCloud();
+            showToast("تمت المزامنة بنجاح وتحديث السجلات!", "success");
+        }
+
+        // --- HELPER TOASTS & DATES ---
+        function initDateFields() {
+            const today = new Date().toISOString().split('T')[0];
+            const vDate = document.getElementById('v-date');
+            if (vDate && !vDate.value) vDate.value = today;
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const toast = document.createElement('div');
+            let bgClass = 'bg-emerald-600';
+            let icon = 'fa-circle-check';
+            if (type === 'error') {
+                bgClass = 'bg-rose-600';
+                icon = 'fa-triangle-exclamation';
+            } else if (type === 'info') {
+                bgClass = 'bg-blue-600';
+                icon = 'fa-circle-info';
+            }
+
+            toast.className = `${bgClass} text-white px-4 py-3 rounded-xl shadow-lg text-xs font-bold flex items-center gap-2 pointer-events-auto transition transform translate-y-2 opacity-0 duration-300`;
+            toast.innerHTML = `<i class="fa-solid ${icon} text-sm"></i> <span>${message}</span>`;
+            
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
