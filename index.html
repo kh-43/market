@@ -7,8 +7,8 @@
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome Icons -->
-<!-- مكتبة Supabase السحابية الرسمية -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- مكتبة Supabase السحابية الرسمية -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -849,15 +849,24 @@
 
         async function syncDataFromCloud() {
             try {
-                const { data: usersData, error: userErr } = await supabaseClient.from('users').select('*');
-                const { data: visitsData, error: visitErr } = await supabaseClient.from('visits').select('*');
+                console.log("جاري جلب البيانات من Supabase...");
                 
-                if (usersData && usersData.length > 0) {
+                // جلب جدول المستخدمين مع معالجة الأخطاء بوضوح
+                const { data: usersData, error: userErr } = await supabaseClient.from('users').select('*');
+                if (userErr) {
+                    console.error("خطأ في جلب المستخدمين من Supabase:", userErr.message);
+                } else if (usersData && usersData.length > 0) {
                     appData.users = usersData;
                 }
-                if (visitsData) {
+
+                // جلب جدول الزيارات
+                const { data: visitsData, error: visitErr } = await supabaseClient.from('visits').select('*');
+                if (visitErr) {
+                    console.error("خطأ في جلب الزيارات من Supabase:", visitErr.message);
+                } else if (visitsData) {
                     appData.visits = visitsData;
                 }
+                
                 saveToLocalStorage();
                 renderAll();
                 console.log("تمت المزامنة مع سوبباس بنجاح");
@@ -1189,11 +1198,10 @@
 
             saveToLocalStorage();
 
-            // حفظ وإرسال البيانات إلى سوبباس بشكل مباشر وفوري
             try {
                 const { error } = await supabaseClient
                     .from('visits')
-                    .upsert([visitData]);
+                    .upsert([visitData], { onConflict: 'id' });
                 if (error) {
                     console.error("خطأ في الحفظ السحابي:", error.message);
                 }
@@ -1229,7 +1237,6 @@
                 saveToLocalStorage();
                 renderAll();
 
-                // الحذف من سوبباس
                 try {
                     const { error } = await supabaseClient
                         .from('visits')
@@ -1518,11 +1525,17 @@
 
             saveToLocalStorage();
 
-            // حفظ المستخدم سحابياً
+            // حفظ المستخدم سحابياً مع تحديد حقل التحديد (onConflict)
             try {
-                await supabaseClient.from('users').upsert([userDataObj]);
+                const { error } = await supabaseClient
+                    .from('users')
+                    .upsert([userDataObj], { onConflict: 'username' });
+                if (error) {
+                    console.error("خطأ حفظ المستخدم سحابياً:", error.message);
+                    showToast("تم الحفظ محلياً ولكن فشل التزامن السحابي", "error");
+                }
             } catch (err) {
-                console.error("خطأ حفظ المستخدم سحابياً:", err);
+                console.error("خطأ الشبكة أو الاتصال:", err);
             }
 
             closeUserModal();
@@ -1549,7 +1562,7 @@
             }
         }
 
-        // --- CHANGE MY PASSWORD FUNCTIONS (دوال تغيير كلمة المرور للمستخدم العادي) ---
+        // --- CHANGE MY PASSWORD FUNCTIONS ---
         function openChangeMyPasswordModal() {
             if (!appData.currentUser) return;
             if (!appData.currentUser.canChangePassword && appData.currentUser.username !== 'admin') {
@@ -1584,7 +1597,7 @@
             saveToLocalStorage();
 
             try {
-                await supabaseClient.from('users').upsert([appData.currentUser]);
+                await supabaseClient.from('users').upsert([appData.currentUser], { onConflict: 'username' });
             } catch (err) {
                 console.error("خطأ تحديث كلمة المرور سحابياً:", err);
             }
